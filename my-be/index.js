@@ -75,11 +75,12 @@ app.get('/chat/messages', async (req, res) => {
     console.log("Request received at /chat/messages endpoint");
     const messages = await prisma.chatMessage.findMany({
         orderBy: {
-            createdAt: "asc",
+            createdAt: "desc",
         },
-        take: 50,
+        take: 300,
     });
-    res.json(messages);
+    const sortedMessages = messages.sort((a, b) => a.createdAt - b.createdAt);
+    res.json(sortedMessages);
 });
 
 app.post('/admin/login', (req, res) => {
