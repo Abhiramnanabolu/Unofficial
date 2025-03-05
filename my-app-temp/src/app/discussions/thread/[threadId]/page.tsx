@@ -374,7 +374,7 @@ function Reply({ reply, depth = 0, refreshDiscussion }: { reply: any; depth?: nu
   )
 }
 
-export default function DiscussionThreadPage({ params }: { params: { threadId: string } }) {
+export default function DiscussionThreadPage({ params }: any) {
   const [showMainReplyForm, setShowMainReplyForm] = useState(false)
   const [discussion, setDiscussion] = useState<Discussion | null>(null)
   const [loading, setLoading] = useState(true)
