@@ -1,9 +1,6 @@
 'use client'
 
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Bell, Search, User } from "lucide-react"
 import { useEffect, useState } from "react"
 import GradientAvatar from "./gradientAvatar"
 
@@ -22,7 +19,7 @@ export function Header({ type }: HeaderProps) {
   useEffect(() => {
     const fetchUsername = async () => {
       try {
-        let storedUsername = localStorage.getItem("username");
+        const storedUsername = localStorage.getItem("username");
   
         if (storedUsername) {
           setUsername(storedUsername); 

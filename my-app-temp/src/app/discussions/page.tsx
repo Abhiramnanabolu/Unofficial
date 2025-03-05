@@ -10,7 +10,7 @@ import {Loader} from "@/components/ui/loader"
 import { formatDistanceToNow } from "date-fns"
 import GradientAvatar from "@/components/ui/gradientAvatar";
 
-let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
 
 export default function DiscussionsPage() {
   const [recentDiscussions, setRecentDiscussions] = useState<any[]>([])

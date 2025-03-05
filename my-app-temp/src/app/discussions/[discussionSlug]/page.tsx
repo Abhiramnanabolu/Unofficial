@@ -47,7 +47,7 @@ interface Params {
   discussionSlug: keyof typeof forumCategories;
 }
 
-let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
 
 export default function DiscussionCategoryPage({ params }: { params: Params }) {
   const { discussionSlug } = params;
