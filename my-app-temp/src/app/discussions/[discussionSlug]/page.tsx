@@ -49,9 +49,10 @@ interface Params {
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
 
-export default function DiscussionCategoryPage({ params }: { params: Params }) {
+export default function DiscussionCategoryPage({ params }: { params: { discussionSlug: string } }) {
+
   const { discussionSlug } = params;
-  const category = forumCategories[discussionSlug];
+  const category = forumCategories[discussionSlug as keyof typeof forumCategories];
 
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [sortBy, setSortBy] = useState("latest");
