@@ -1,0 +1,672 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect, useRef, useCallback } from "react"
+import axios from "axios"
+import { format, isToday, isYesterday } from "date-fns"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Loader } from "@/components/ui/loader"
+import GradientAvatar from "@/components/ui/gradientAvatar"
+import Header from "@/components/ui/header"
+import { Send, RefreshCw, ChevronDown } from "lucide-react"
+
+interface Message {
+  id: string
+  sender: string
+  content: string
+  createdAt: string
+}
+
+export default function ChatPage() {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [ws, setWs] = useState<WebSocket | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [connecting, setConnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState(false)
+  const [username, setUsername] = useState<string | null>(
+    typeof window !== "undefined" ? localStorage.getItem("username") || "Anonymous" : "Anonymous",
+  )
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const [isUserScrolling, setIsUserScrolling] = useState(false)
+
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3114"
+
+  // Scroll to bottom of messages
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [])
+
+  // Handle scroll events to show/hide scroll button and track user scrolling
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return
+
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
+    const bottomThreshold = 100 // pixels from bottom
+
+    // Show scroll button when not at bottom
+    setShowScrollButton(scrollHeight - scrollTop - clientHeight > bottomThreshold)
+    
+    // Detect if user is actively scrolling
+    setIsUserScrolling(scrollHeight - scrollTop - clientHeight > bottomThreshold)
+  }, [])
+
+  useEffect(() => {
+    const currentRef = messagesContainerRef.current
+    if (currentRef) {
+      currentRef.addEventListener("scroll", handleScroll)
+    }
+
+    return () => {
+      if (currentRef) {
+        currentRef.removeEventListener("scroll", handleScroll)
+      }
+    }
+  }, [handleScroll])
+
+  // Group messages by date
+  const groupMessagesByDate = (msgs: Message[]) => {
+    // First, reverse the messages to show oldest first
+    const sortedMessages = [...msgs].reverse()
+
+    const groups: { [key: string]: Message[] } = {}
+
+    sortedMessages.forEach((message) => {
+      const date = new Date(message.createdAt)
+      const dateKey = format(date, "yyyy-MM-dd")
+
+      if (!groups[dateKey]) {
+        groups[dateKey] = []
+      }
+
+      groups[dateKey].push(message)
+    })
+
+    return groups
+  }
+
+  // Get human-readable date header
+  const getDateHeader = (dateKey: string) => {
+    const date = new Date(dateKey)
+
+    if (isToday(date)) {
+      return "Today"
+    } else if (isYesterday(date)) {
+      return "Yesterday"
+    } else {
+      return format(date, "MMMM d, yyyy")
+    }
+  }
+
+  useEffect(() => {
+    // Only auto-scroll if user is not actively scrolling and is near the bottom
+    if (messagesContainerRef.current && !isUserScrolling) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
+
+      if (isAtBottom) {
+        scrollToBottom()
+      }
+    }
+  }, [messages, isUserScrolling, scrollToBottom])
+
+  // Fetch past messages
+  const fetchPastMessages = useCallback(async () => {
+    try {
+      const response = await axios.get(`${backendUrl}/chat/messages`)
+      setMessages(response.data)
+      setLoading(false)
+
+      // Scroll to bottom after initial load
+      setTimeout(scrollToBottom, 100)
+    } catch (error) {
+      console.error("Error fetching past messages:", error)
+      setLoading(false)
+    }
+  }, [backendUrl, scrollToBottom])
+
+  const connectWebSocket = useCallback(() => {
+    setConnecting(true)
+    setConnectionError(false)
+
+    const socket = new WebSocket(`ws://${backendUrl.replace("http://", "")}`)
+
+    socket.onopen = () => {
+      console.log("WebSocket connection established")
+      setConnecting(false)
+    }
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.type === "new_message") {
+        // Only auto-scroll for new messages if user is near bottom
+        setMessages((prev) => [data.message, ...prev])
+      }
+    }
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error)
+      setConnectionError(true)
+      setConnecting(false)
+    }
+
+    socket.onclose = () => {
+      console.log("WebSocket connection closed")
+      setConnectionError(true)
+      setConnecting(false)
+    }
+
+    setWs(socket)
+
+    return () => {
+      socket.close()
+    }
+  }, [backendUrl])
+
+  useEffect(() => {
+    fetchPastMessages()
+    connectWebSocket()
+
+    return () => {
+      if (ws) {
+        ws.close()
+      }
+    }
+  }, [fetchPastMessages, connectWebSocket])
+
+  const sendMessage = () => {
+    if (input.trim() && ws && ws.readyState === WebSocket.OPEN) {
+      const message = {
+        type: "new_message",
+        content: input.trim(),
+        sender: username,
+      }
+
+      ws.send(JSON.stringify(message))
+      setInput("")
+
+      // Force scroll to bottom only when sending a message
+      setTimeout(scrollToBottom, 100)
+    } else if (ws?.readyState !== WebSocket.OPEN) {
+      setConnectionError(true)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const reconnect = () => {
+    if (ws) {
+      ws.close()
+    }
+    connectWebSocket()
+  }
+
+  const isOwnMessage = (sender: string) => {
+    return sender === username
+  }
+
+  const messageGroups = groupMessagesByDate(messages)
+
+  return (
+    <>
+      <Header type="Chat" />
+      <main className="w-full mt-8 max-w-4xl mx-auto py-12 px-4 md:px-6">
+        <Card className="shadow-md border-muted overflow-hidden bg-gradient-to-b from-background to-muted/10">
+          <CardHeader className="pb-3 border-b">
+            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              Live Chat
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex justify-center items-center h-[60vh]">
+                <Loader type="1" size="lg" />
+              </div>
+            ) : (
+              <>
+                <div
+                  ref={messagesContainerRef}
+                  className="h-[60vh] overflow-y-auto p-4 custom-scrollbar"
+                  style={{
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "var(--primary) transparent",
+                  }}
+                >
+                  {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <p>No messages yet. Be the first to say hello!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {Object.keys(messageGroups).map((dateKey) => (
+                        <div key={dateKey} className="space-y-4">
+                          <div className="flex items-center justify-center my-4">
+                            <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">
+                              {getDateHeader(dateKey)}
+                            </div>
+                          </div>
+
+                          {messageGroups[dateKey].map((msg, index) => {
+                            const prevMsg = index > 0 ? messageGroups[dateKey][index - 1] : null
+                            const showAvatar = !prevMsg || prevMsg.sender !== msg.sender
+                            const showTime =
+                              !prevMsg ||
+                              new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() > 5 * 60 * 1000
+
+                            return (
+                              <div
+                                key={msg.id}
+                                className={`flex ${isOwnMessage(msg.sender) ? "justify-end" : "justify-start"}`}
+                              >
+                                <div
+                                  className={`flex max-w-[80%] ${isOwnMessage(msg.sender) ? "flex-row-reverse" : "flex-row"}`}
+                                >
+                                  {showAvatar ? (
+                                    <div className={`flex-shrink-0 ${isOwnMessage(msg.sender) ? "ml-2" : "mr-2"}`}>
+                                      {isOwnMessage(msg.sender) ? (
+                                        <Avatar className="h-8 w-8 border-2 border-primary/20">
+                                          <AvatarFallback className="bg-primary text-primary-foreground">
+                                            {username?.charAt(0).toUpperCase()}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                      ) : (
+                                        <GradientAvatar username={msg.sender} size={32} />
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className={`flex-shrink-0 w-8 ${isOwnMessage(msg.sender) ? "ml-2" : "mr-2"}`}
+                                    />
+                                  )}
+
+                                  <div>
+                                    {showAvatar && (
+                                      <p
+                                        className={`text-xs font-medium mb-1 ${isOwnMessage(msg.sender) ? "text-right" : "text-left"}`}
+                                      >
+                                        {msg.sender}
+                                      </p>
+                                    )}
+                                    <div
+                                      className={`rounded-2xl px-4 py-2 inline-block shadow-sm ${
+                                        isOwnMessage(msg.sender)
+                                          ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground"
+                                          : "bg-muted/80 backdrop-blur-sm"
+                                      }`}
+                                    >
+                                      <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                                    </div>
+                                    {showTime && msg.createdAt && (
+                                      <p
+                                        className={`text-xs text-muted-foreground mt-1 ${isOwnMessage(msg.sender) ? "text-right" : "text-left"}`}
+                                      >
+                                        {format(new Date(msg.createdAt), "h:mm a")}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </div>
+
+                {showScrollButton && (
+                  <Button
+                    onClick={scrollToBottom}
+                    className="absolute bottom-24 right-8 rounded-full h-10 w-10 p-0 shadow-lg bg-primary/90 hover:bg-primary"
+                    aria-label="Scroll to bottom"
+                  >
+                    <ChevronDown className="h-5 w-5" />
+                  </Button>
+                )}
+
+                {connectionError && (
+                  <div className="bg-destructive/10 text-destructive rounded-md p-3 mx-4 mb-4 flex items-center justify-between">
+                    <p className="text-sm">Connection lost. Please reconnect to continue chatting.</p>
+                    <Button variant="outline" size="sm" onClick={reconnect} disabled={connecting} className="ml-2">
+                      {connecting ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                      )}
+                      {connecting ? "Connecting..." : "Reconnect"}
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex items-center space-x-2 p-4 border-t bg-muted/5 backdrop-blur-sm">
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    placeholder="Type your message..."
+                    className="flex-grow bg-background/80 border-muted focus-visible:ring-primary/50"
+                    disabled={connectionError || connecting}
+                  />
+                  <Button
+                    onClick={sendMessage}
+                    disabled={!input.trim() || connectionError || connecting}
+                    className="rounded-full bg-primary hover:bg-primary/90"
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    Send
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+
+      <style jsx global>{`
+        /* Custom scrollbar styles */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: hsl(var(--primary) / 0.3);
+          border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: hsl(var(--primary) / 0.5);
+        }
+      `}</style>
+    </>
+  )
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+============================================================================================
+
+working best 
+
+
+
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
+import axios from "axios"
+import { format } from "date-fns"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Loader } from "@/components/ui/loader"
+import GradientAvatar from "@/components/ui/gradientAvatar"
+import Header from "@/components/ui/header"
+import { Send, RefreshCw } from "lucide-react"
+
+interface Message {
+  id: string
+  sender: string
+  content: string
+  createdAt: string
+}
+
+export default function ChatPage() {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [ws, setWs] = useState<WebSocket | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [connecting, setConnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState(false)
+  const [username, setUsername] = useState<string | null>(
+    typeof window !== "undefined" ? localStorage.getItem("username") || "Anonymous" : "Anonymous",
+  )
+
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3114"
+
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages]) // Updated dependency array
+
+  // Fetch past messages
+  const fetchPastMessages = async () => {
+    try {
+      const response = await axios.get(`${backendUrl}/chat/messages`)
+      setMessages(response.data)
+      setLoading(false)
+    } catch (error) {
+      console.error("Error fetching past messages:", error)
+      setLoading(false)
+    }
+  }
+
+  const connectWebSocket = () => {
+    setConnecting(true)
+    setConnectionError(false)
+
+    const socket = new WebSocket(`ws://${backendUrl.replace("http://", "")}`)
+
+    socket.onopen = () => {
+      console.log("WebSocket connection established")
+      setConnecting(false)
+    }
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.type === "new_message") {
+        setMessages((prev) => {
+          // Check if the message already exists in our state
+          const messageExists = prev.some((msg) => msg.id === data.message.id)
+          if (messageExists) {
+            return prev // Don't add duplicate message
+          }
+          return [...prev, data.message]
+        })
+      }
+    }
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error)
+      setConnectionError(true)
+      setConnecting(false)
+    }
+
+    socket.onclose = () => {
+      console.log("WebSocket connection closed")
+      setConnectionError(true)
+      setConnecting(false)
+    }
+
+    setWs(socket)
+
+    return () => {
+      socket.close()
+    }
+  }
+
+  useEffect(() => {
+    fetchPastMessages()
+    connectWebSocket()
+
+    return () => {
+      if (ws) {
+        ws.close()
+      }
+    }
+  }, []) // Updated dependency array
+
+  const sendMessage = () => {
+    if (input.trim() && ws && ws.readyState === WebSocket.OPEN) {
+      const message = {
+        type: "new_message",
+        content: input.trim(),
+        sender: username,
+      }
+
+      ws.send(JSON.stringify(message))
+      setInput("")
+      // Remove any local message addition here - only rely on the WebSocket response
+    } else if (ws?.readyState !== WebSocket.OPEN) {
+      setConnectionError(true)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const reconnect = () => {
+    if (ws) {
+      ws.close()
+    }
+    connectWebSocket()
+  }
+
+  const isOwnMessage = (sender: string) => {
+    return sender === username
+  }
+
+  return (
+    <>
+      <Header type="Chat" />
+      <main className="w-full mt-8 max-w-4xl mx-auto py-12 px-4 md:px-6">
+        <Card className="shadow-sm border-muted">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-2xl font-bold">Live Chat</CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center items-center h-[60vh]">
+                <Loader type="1" size="lg" />
+              </div>
+            ) : (
+              <>
+                <div className="h-[60vh] overflow-y-auto mb-4 p-2">
+                  {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <p>No messages yet. Be the first to say hello!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`flex ${isOwnMessage(msg.sender) ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`flex max-w-[80%] ${isOwnMessage(msg.sender) ? "flex-row-reverse" : "flex-row"}`}
+                          >
+                            <div className={`flex-shrink-0 ${isOwnMessage(msg.sender) ? "ml-2" : "mr-2"}`}>
+                              <GradientAvatar username={msg.sender} size={32} />
+                            </div>
+                            <div>
+                              <div
+                                className={`rounded-lg px-4 py-2 inline-block ${
+                                  isOwnMessage(msg.sender) ? "bg-gray-200" : "bg-muted"
+                                }`}
+                              >
+                                <p className="text-sm font-medium mb-1">{msg.sender}</p>
+                                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                              </div>
+                              {msg.createdAt && (
+                                <p
+                                  className={`text-xs text-muted-foreground mt-1 ${isOwnMessage(msg.sender) ? "text-right" : "text-left"}`}
+                                >
+                                  {format(new Date(msg.createdAt), "hh:mm a")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </div>
+
+                {connectionError && (
+                  <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-4 flex items-center justify-between">
+                    <p className="text-sm">Connection lost. Please reconnect to continue chatting.</p>
+                    <Button variant="outline" size="sm" onClick={reconnect} disabled={connecting} className="ml-2">
+                      {connecting ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                      )}
+                      {connecting ? "Connecting..." : "Reconnect"}
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex items-center space-x-2">
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    placeholder="Type your message..."
+                    className="flex-grow"
+                    disabled={connectionError || connecting}
+                  />
+                  <Button
+                    onClick={sendMessage}
+                    disabled={!input.trim() || connectionError || connecting}
+                    className="rounded-full"
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    Send
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+    </>
+  )
+}
+
