@@ -154,9 +154,6 @@ export function Header({ type }: HeaderProps) {
               <Link href="/discussions" className="text-sm font-medium transition-colors hover:text-primary">
                 Discussions
               </Link>
-              <Link href="/confessions" className="text-sm font-medium transition-colors hover:text-primary">
-                Confessions
-              </Link>
               <Link href="/chat" className="text-sm font-medium transition-colors hover:text-primary">
                 Chat
               </Link>
@@ -186,9 +183,6 @@ export function Header({ type }: HeaderProps) {
             <nav className="hidden md:flex gap-6 text-gray-500">
               <Link href="/discussions" className="text-sm font-medium transition-colors hover:text-primary">
                 Discussions
-              </Link>
-              <Link href="/confessions" className="text-sm font-medium transition-colors hover:text-primary">
-                Confessions
               </Link>
               <Link href="/chat" className="text-sm font-medium transition-colors hover:text-primary">
                 Chat
