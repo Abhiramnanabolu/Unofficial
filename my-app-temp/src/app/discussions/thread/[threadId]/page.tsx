@@ -15,7 +15,7 @@ import { Loader } from "@/components/ui/loader"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
 
 export interface Discussion {
   id: string
