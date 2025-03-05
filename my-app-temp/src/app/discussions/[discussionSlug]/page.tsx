@@ -51,7 +51,9 @@ const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
 
 export default function DiscussionCategoryPage({ params }: { params: { discussionSlug: string } }) {
   //console.log(params);
+  // @ts-ignore
   const { discussionSlug } = params as { discussionSlug: string };
+  // @ts-ignore
   const category = forumCategories[discussionSlug as keyof typeof forumCategories];
 
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
