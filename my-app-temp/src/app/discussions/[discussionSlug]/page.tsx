@@ -48,8 +48,8 @@ interface Params {
 }
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
-
-export default function DiscussionCategoryPage({ params }: { params: { discussionSlug: string } }) {
+export default function DiscussionCategoryPage({ params }: any) {
+//export default function DiscussionCategoryPage({ params }: { params: { discussionSlug: string } }) {
   //console.log(params);
   // @ts-ignore
   const { discussionSlug } = params as { discussionSlug: string };
