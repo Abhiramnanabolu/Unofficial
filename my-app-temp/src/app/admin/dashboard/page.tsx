@@ -52,7 +52,7 @@ export default function AdminDashboard() {
     await fetch("http://localhost:3114/admin/logout", { credentials: "include" })
     router.push("/admin/")
   }
-
+  console.log(isAdmin)
   if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>
 
   return (

@@ -22,7 +22,7 @@ export default function NewThreadButton({ categorySlug }: { categorySlug: string
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  let storedUsername = localStorage.getItem("username");
+  const storedUsername = localStorage.getItem("username");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
