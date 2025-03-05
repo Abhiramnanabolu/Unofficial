@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Reply" ADD COLUMN     "likes" INTEGER NOT NULL DEFAULT 0;
