@@ -9,7 +9,7 @@ import session from 'express-session';
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-const allowedOrigins = [process.env.FRONTEND_URL || "http://localhost:3000"];
+const allowedOrigins = [process.env.FRONTEND_URL || "http://localhost:3000" , "https://mgit.vercel.app" , "https://mgitunofficial.vercel.app"];
 
 app.use(
   cors({
