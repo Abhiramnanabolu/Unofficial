@@ -374,7 +374,9 @@ export default function LandingPage() {
           <div className="container mx-auto px-4">
             <div className="grid md:grid-cols-4 gap-8 items-center justify-center">
               <div>
-                <h3 className="text-xl font-bold mb-4">Campus Connect</h3>
+                <Link href="/" className="flex items-center space-x-2">
+                  <span className="text-2xl font-bold mb-4">MGIT<span className="text-black/65 text-lg">Unofficial</span></span>
+                </Link>
                 <p className="text-gray-400">
                   Your all-in-one platform for student discussions, real-time chat, and essential academic tools.
                 </p>
