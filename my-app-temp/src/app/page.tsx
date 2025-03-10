@@ -375,7 +375,7 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-4 gap-8 items-center justify-center">
               <div>
                 <Link href="/" className="flex items-center space-x-2">
-                  <span className="text-2xl font-bold mb-4">MGIT<span className="text-black/65 text-lg">Unofficial</span></span>
+                  <span className="text-2xl font-bold mb-4">MGIT<span className="text-white/65 text-lg">Unofficial</span></span>
                 </Link>
                 <p className="text-gray-400">
                   Your all-in-one platform for student discussions, real-time chat, and essential academic tools.
@@ -391,7 +391,7 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-              <p>© {new Date().getFullYear()} Campus Connect. All rights reserved.</p>
+              <p>© {new Date().getFullYear()} MGITUnofficial.</p>
             </div>
           </div>
         </footer>
